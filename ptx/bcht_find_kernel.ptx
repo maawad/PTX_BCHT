@@ -1,0 +1,252 @@
+// Written by Muhammad Awad
+//
+
+// Rules:
+// Registers with variable-like names are used throughput the program
+// Registers with %r# or %rd# are temporary
+// Predicate registers starts with %p_xxx
+// Parameters will be named param_var_name
+
+// Generic address will have variable-like name
+// Local address will be called: ptr_name_l
+
+// Todo: need some rule to have scope for temp varibles to avoid overwriting them
+
+
+.version 7.2
+
+.target sm_80, sm_86,
+ 		sm_70, sm_72, sm_75,
+ 		sm_60, sm_61, sm_62,
+ 		sm_50, sm_52, sm_53,
+ 		sm_30, sm_32, sm_35, sm_37
+.address_size 64
+
+// printf strings example
+// ASCII for: "tid: %i -> %i  \n"
+.global .align 1 .b8 $tid_mapping_str[17] = {116, 105, 100, 58, 32, 37, 105, 32, 45, 62, 32, 37, 105, 32, 32, 10, 0};
+// ASCII for: "tid: %u -> %u  \n"
+.global .align 1 .b8 $tid_mapping_ustr[15] = {116, 105, 100, 58, 32, 37, 117, 32, 45, 62, 32, 37, 117, 10, 0};
+// ASCII for: "tid: %i -> %p  \n"
+.global .align 1 .b8 $tid_ptr_mapping_str[17] = {116, 105, 100, 58, 32, 37, 105, 32, 45, 62, 32, 37, 112, 32, 32, 10, 0};
+.global .align 1 .b8 $mapping_str[17] = {116, 105, 100, 58, 32, 37, 105, 32, 45, 62, 32, 37, 105, 32, 32, 10, 0};
+// ASCII for: "%i, %i, %i \n"
+.global .align 1 .b8 $three_vals_str[13] = {37, 105, 44, 32, 37, 105, 44, 32, 37, 105, 32, 10, 0};
+//ASCII for "tid: %i -> %#010x\n"
+.global .align 1 .b8 $tid_mapping_hex_str[19] = {116, 105, 100, 58, 32, 37, 105, 32, 45, 62, 32, 37, 35, 48, 49, 48, 120, 10, 0};
+
+// External functions
+.extern .func  (.param .b32 func_retval0) vprintf
+(
+	.param .b64 vprintf_param_0,
+	.param .b64 vprintf_param_1
+);
+
+
+.visible .entry bcht_find(
+	.param .u64 param_table, 			//uint32_t* table
+	.param .u64 param_keys, 			//uint32_t* keys_in
+	.param .u32 param_num_keys, 		//uint32_t  num_keys
+	.param .u64 param_results, 			//bool*     results: true exist, false not exist
+	.param .align 4 .b8 param_hf0[12],  // hash_function f0
+	.param .align 4 .b8 param_hf1[12],  // hash_function f1
+	.param .align 4 .b8 param_hf2[12],  // hash_function f2
+	.param .u32 param_num_buckets 		// num_buckets
+)
+{
+	// register declaration
+	.reg .b32 	%r<3>;  // 3 32-bit registers
+	.reg .b64 	%rd<2>; // 2 64-bit registers
+	.reg .pred	%p<3>;	// 3 predicate registers
+
+	.reg .b32	%thread_id;
+	.reg .b32	%lane_id;
+	.reg .b32	%lane_key;
+	.reg .u16	%lane_result;
+
+	.reg .b32	%hfx<3>; // three hash functions
+	.reg .b32	%hfy<3>;
+	.reg .b32	%hf_prime;
+
+	.reg .b64	%keys_in;
+	.reg .b64	%results;
+	.reg .b64	%table;
+
+	.reg .b32	%num_buckets;
+	.reg .u32	%num_keys;
+	.reg .pred	%p_to_lookup;
+	.reg .pred	%p_to_write_result;
+
+	// Prepare the above registers
+	mov.u32 	%thread_id, %ctaid.x;
+	mov.u32 	%r0, %ntid.x;
+	mov.u32 	%r1, %tid.x;
+	mad.lo.s32 	%thread_id, %thread_id, %r0, %r1;
+	and.b32		%lane_id, %thread_id, 0x1f;
+
+	// input keys ptr
+	ld.param.u64 		%keys_in, [param_keys];
+	cvta.to.global.u64 	%keys_in, %keys_in;
+
+	// results ptr
+	ld.param.u64 		%results, [param_results];
+	cvta.to.global.u64 	%results, %results;
+
+	// table ptr
+	ld.param.u64 		%table, [param_table];
+	cvta.to.global.u64 	%table, %table;
+
+	// gash functions
+	ld.param.u32 	%hfx0, [param_hf0];
+	ld.param.u32 	%hfx1, [param_hf1];
+	ld.param.u32 	%hfx2, [param_hf2];
+
+	ld.param.u32 	%hfy0, [param_hf0+4];
+	ld.param.u32 	%hfy1, [param_hf1+4];
+	ld.param.u32 	%hfy2, [param_hf2+4];
+
+	ld.param.u32 	%hf_prime, [param_hf0+8];
+
+	ld.param.u32 	%num_buckets, [param_num_buckets];
+	ld.param.u32 	%num_keys, [param_num_keys];
+
+	mov.u16 		%lane_result, 0; 						// default result is not found
+	setp.lt.u32 	%p_to_lookup, %thread_id, %num_keys; 	// thread_id < num_keys ? 1 : 0
+	mov.pred 		%p_to_write_result, %p_to_lookup;
+
+	// Loading the input
+	mul.wide.s32 	%rd0, %thread_id, 4; 	// address calculation
+	add.s64 	%rd1, %keys_in, %rd0;
+	mov.b32		%lane_key, -1;
+	@%p_to_lookup
+	ld.global.u32 	 %lane_key, [%rd1]; 	// load
+
+	// loop over the queries in the warp
+	Loop:
+	vote.sync.ballot.b32 %r0, %p_to_lookup, -1;
+
+	// if no items in the queue, terminate
+	setp.eq.u32 %p0, %r0, 0; //terminate
+	@%p0
+	bra.uni Exit_loop;
+
+	// pop an item from the queue
+	bfind.u32 		%r1, %r0; 				// note: bfind(0) = -1, bfind(1) = 0,
+	setp.eq.u32 	%p0, %lane_id, %r1;		// %r1 holds the current lane
+	@%p0 mov.pred 	%p_to_lookup, 0;
+
+	shfl.sync.idx.b32	%r2, %lane_key, %r1, 31, -1; // store key in %r2
+
+	// compute hash: hash = ((hfx ^ key + hfxy) mod p) mod L
+	// maybe we can optimize and compute all hash functions at once using vec2
+	xor.b32 %r0, %r2, %hfx0;
+	add.u32 %r0, %r0, %hfy0;
+	rem.u32 %r0, %r0, %hf_prime;
+	rem.u32 %r0, %r0, %num_buckets;
+
+	// load the bucket
+	mul.wide.s32 		%rd1, %lane_id, 4;
+	mad.wide.s32 		%rd0, %r0, 32*4, %rd1; 	//32 is bucket size
+	add.s64 			%rd1, %table, %rd0;
+	ld.global.u32		%r0, [%rd1]; 			// bucket data is stored in %r0
+	setp.eq.u32 		%p0, %r0, %r2; 			// predicate0 = bucket_key == cur_key
+	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast that the key exist to %p0
+	mov.pred 			%p2, %p0; 				// store key exists %p0 in a temp predicate
+	@%p0 setp.eq.u32 	%p1, %r1, %lane_id; 	// predicate1 = cur_lane == lane_id
+	@%p0 and.pred		%p0, %p0, %p1; 			// key exist, and lane is cur_lane
+	@%p0 mov.u16		%lane_result, 1; 		// store true
+	@%p2 bra.uni 		Loop;					// terminate
+	setp.eq.u32 		%p0, %r0, -1; 			// predicate0 = bucket_key == invalid_key
+	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast invalid key exist to %p0
+	@%p0 bra.uni		Loop;
+
+	// compute second hash
+	xor.b32 	%r0, %r2, %hfx1;
+	add.u32 	%r0, %r0, %hfy1;
+	rem.u32 	%r0, %r0, %hf_prime;
+	rem.u32 	%r0, %r0, %num_buckets;
+	// load the bucket
+	cvt.s64.s32			%rd1, %lane_id;
+	mul.wide.s32 		%rd1, %lane_id, 4;
+	mad.wide.s32 		%rd0, %r0, 32*4, %rd1; 	//32 is bucket size
+	add.s64 			%rd1, %table, %rd0;
+	ld.global.u32 	 	%r0, [%rd1]; 			// bucket data is stored in %r0
+	setp.eq.u32 		%p0, %r0, %r2; 			// predicate0 = bucket_key == cur_key
+	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast that the key exist to %p0
+	mov.pred 			%p2, %p0; 				// store key exists %p0 in a temp predicate
+	@%p0
+	setp.eq.u32 		%p1, %r1, %lane_id; 	// predicate1 = cur_lane == lane_id
+	@%p0
+	and.pred			%p0, %p0, %p1; 			// key exist, and lane is cur_lane
+	@%p0
+	mov.u16				%lane_result, 1; 		// store true
+	@%p2
+	bra.uni 			Loop;					 // terminate
+	setp.eq.u32 		%p0, %r0, -1; 			 // predicate0 = bucket_key == invalid_key
+	vote.sync.any.pred 	%p0, %p0, -1; 			 // broadcast invalid key exist to %p0
+	@%p0 bra.uni		Loop;
+
+
+	// compute third hash
+	xor.b32	 	%r0, %r2, %hfx2;
+	add.u32	 	%r0, %r0, %hfy2;
+	rem.u32	 	%r0, %r0, %hf_prime;
+	rem.u32	 	%r0, %r0, %num_buckets;
+	// load the bucket
+	cvt.s64.s32				%rd1, %lane_id;
+	mul.wide.s32 			%rd1, %lane_id, 4;
+	mad.wide.s32 			%rd0, %r0, 32*4, %rd1; 		// 32 is bucket size
+	add.s64 				%rd1, %table, %rd0;
+	ld.global.u32 			%r0, [%rd1]; 				// bucket data is stored in %r0
+	setp.eq.u32 			%p0, %r0, %r2; 				// predicate0 = bucket_key == cur_key
+	vote.sync.any.pred 		%p0, %p0, -1; 				// broadcast that the key exist to %p0
+	mov.pred 				%p2, %p0; 					// store key exists %p0 in a temp predicate
+	@%p0
+	setp.eq.u32 			%p1, %r1, %lane_id; 		// predicate1 = cur_lane == lane_id
+	@%p0
+	and.pred				%p0, %p0, %p1; 				// key exist, and lane is cur_lane
+	@%p0
+	mov.u16					%lane_result, 1; 			// store true
+
+	bra.uni 	Loop;
+	Exit_loop:
+
+	// store the results
+	cvt.u64.u32		%rd0, %thread_id; // address calculation
+	add.s64			%rd1, %results, %rd0;
+	@%p_to_write_result
+	st.global.u8	[%rd1], %lane_result;
+	ret;
+
+	// printf example
+	// { // printf callseq 0
+	// 	.reg .b32 	%to_print<2>;
+	// 	.reg .b64 %fmt;
+	// 	mov.u32 	%to_print0, %r0; // change these to whatever you want to print
+	// 	mov.u32 	%to_print1, %r0;
+	// 	cvta.global.u64 	%fmt, $tid_mapping_ustr;
+
+	// 	.param .b64 param0;
+	// 	.param .b64 param1;
+	// 	.param .b32 retval;
+
+	// 	.reg .b64 	%stack_ptr;
+	// 	.reg .b64 	%stack_ptr_l;
+
+	// 	// Allocate local memory
+	// 	.local .align 8 .b8 	__local_depot0[8];
+	// 	mov.u64 	%stack_ptr_l, __local_depot0; // Move
+	// 	cvta.local.u64 	%stack_ptr, %stack_ptr_l; // Convert stack pointer local address to genreic address
+	// 	st.local.v2.u32 	[%stack_ptr_l], {%to_print0, %to_print1};
+
+	// 	st.param.b64 	[param0+0], %fmt;
+	// 	st.param.b64 	[param1+0], %stack_ptr;
+	// 	call.uni (retval),
+	// 	vprintf,
+	// 			(
+	// 			param0,
+	// 			param1
+	// 			);
+	// } // printf callseq 0
+}
+
