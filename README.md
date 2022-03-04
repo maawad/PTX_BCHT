@@ -10,6 +10,7 @@ Cuckoo hashing is a probing scheme that achieves very low number of probes at ve
 ## Build
 ```bash
 git clone https://github.com/maawad/PTX_BCHT.git
+cd PTX_BCHT
 mkdir build && cd build
 cmake ..
 make
