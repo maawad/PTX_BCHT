@@ -1,1 +1,0 @@
-/usr/bin/c++  -fopenmp CMakeFiles/ptx_cuckoo_hashtable.dir/ptx_cuckoo_hashtable.cpp.o -o ptx_cuckoo_hashtable  /usr/lib/x86_64-linux-gnu/libcuda.so /usr/local/cuda-11.2/lib64/libcudart_static.a -lpthread -ldl /usr/lib/x86_64-linux-gnu/librt.so 
