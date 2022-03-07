@@ -44,19 +44,19 @@
 
 
 .visible .entry bcht_find(
-	.param .u64 param_table, 			//uint32_t* table
-	.param .u64 param_keys, 			//uint32_t* keys_in
-	.param .u32 param_num_keys, 		//uint32_t  num_keys
-	.param .u64 param_results, 			//bool*     results: true exist, false not exist
-	.param .align 4 .b8 param_hf0[12],  // hash_function f0
-	.param .align 4 .b8 param_hf1[12],  // hash_function f1
-	.param .align 4 .b8 param_hf2[12],  // hash_function f2
-	.param .u32 param_num_buckets 		// num_buckets
+	.param .u64 param_table,		//uint32_t* table
+	.param .u64 param_keys,			//uint32_t* keys_in
+	.param .u32 param_num_keys,		//uint32_t  num_keys
+	.param .u64 param_results,		//bool*     results: true exist, false not exist
+	.param .align 4 .b8 param_hf0[12],	// hash_function f0
+	.param .align 4 .b8 param_hf1[12],	// hash_function f1
+	.param .align 4 .b8 param_hf2[12],	// hash_function f2
+	.param .u32 param_num_buckets		// num_buckets
 )
 {
 	// register declaration
-	.reg .b32 	%r<3>;  // 3 32-bit registers
-	.reg .b64 	%rd<2>; // 2 64-bit registers
+	.reg .b32 	%r<3>;	// 3 32-bit registers
+	.reg .b64 	%rd<2>;	// 2 64-bit registers
 	.reg .pred	%p<3>;	// 3 predicate registers
 
 	.reg .b32	%thread_id;
@@ -110,9 +110,9 @@
 	ld.param.u32 	%num_buckets, [param_num_buckets];
 	ld.param.u32 	%num_keys, [param_num_keys];
 
-	mov.u16 		%lane_result, 0; 						// default result is not found
-	setp.lt.u32 	%p_to_lookup, %thread_id, %num_keys; 	// thread_id < num_keys ? 1 : 0
-	mov.pred 		%p_to_write_result, %p_to_lookup;
+	mov.u16		%lane_result, 0; 						// default result is not found
+	setp.lt.u32	%p_to_lookup, %thread_id, %num_keys; 	// thread_id < num_keys ? 1 : 0
+	mov.pred	%p_to_write_result, %p_to_lookup;
 
 	// Loading the input
 	mul.wide.s32 	%rd0, %thread_id, 4; 	// address calculation
@@ -131,7 +131,7 @@
 	bra.uni Exit_loop;
 
 	// pop an item from the queue
-	bfind.u32 		%r1, %r0; 				// note: bfind(0) = -1, bfind(1) = 0,
+	bfind.u32	%r1, %r0; 			// note: bfind(0) = -1, bfind(1) = 0,
 	setp.eq.u32 	%p0, %lane_id, %r1;		// %r1 holds the current lane
 	@%p0 mov.pred 	%p_to_lookup, 0;
 
@@ -147,17 +147,17 @@
 	// load the bucket
 	mul.wide.s32 		%rd1, %lane_id, 4;
 	mad.wide.s32 		%rd0, %r0, 32*4, %rd1; 	//32 is bucket size
-	add.s64 			%rd1, %table, %rd0;
-	ld.global.u32		%r0, [%rd1]; 			// bucket data is stored in %r0
-	setp.eq.u32 		%p0, %r0, %r2; 			// predicate0 = bucket_key == cur_key
-	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast that the key exist to %p0
-	mov.pred 			%p2, %p0; 				// store key exists %p0 in a temp predicate
+	add.s64 		%rd1, %table, %rd0;
+	ld.global.u32		%r0, [%rd1]; 		// bucket data is stored in %r0
+	setp.eq.u32 		%p0, %r0, %r2; 		// predicate0 = bucket_key == cur_key
+	vote.sync.any.pred 	%p0, %p0, -1; 		// broadcast that the key exist to %p0
+	mov.pred 		%p2, %p0; 		// store key exists %p0 in a temp predicate
 	@%p0 setp.eq.u32 	%p1, %r1, %lane_id; 	// predicate1 = cur_lane == lane_id
-	@%p0 and.pred		%p0, %p0, %p1; 			// key exist, and lane is cur_lane
-	@%p0 mov.u16		%lane_result, 1; 		// store true
-	@%p2 bra.uni 		Loop;					// terminate
-	setp.eq.u32 		%p0, %r0, -1; 			// predicate0 = bucket_key == invalid_key
-	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast invalid key exist to %p0
+	@%p0 and.pred		%p0, %p0, %p1; 		// key exist, and lane is cur_lane
+	@%p0 mov.u16		%lane_result, 1; 	// store true
+	@%p2 bra.uni 		Loop;			// terminate
+	setp.eq.u32 		%p0, %r0, -1; 		// predicate0 = bucket_key == invalid_key
+	vote.sync.any.pred 	%p0, %p0, -1; 		// broadcast invalid key exist to %p0
 	@%p0 bra.uni		Loop;
 
 	// compute second hash
@@ -166,22 +166,22 @@
 	rem.u32 	%r0, %r0, %hf_prime;
 	rem.u32 	%r0, %r0, %num_buckets;
 	// load the bucket
-	cvt.s64.s32			%rd1, %lane_id;
+	cvt.s64.s32		%rd1, %lane_id;
 	mul.wide.s32 		%rd1, %lane_id, 4;
-	mad.wide.s32 		%rd0, %r0, 32*4, %rd1; 	//32 is bucket size
-	add.s64 			%rd1, %table, %rd0;
+	mad.wide.s32 		%rd0, %r0, 32*4, %rd1; 		//32 is bucket size
+	add.s64			%rd1, %table, %rd0;
 	ld.global.u32 	 	%r0, [%rd1]; 			// bucket data is stored in %r0
 	setp.eq.u32 		%p0, %r0, %r2; 			// predicate0 = bucket_key == cur_key
 	vote.sync.any.pred 	%p0, %p0, -1; 			// broadcast that the key exist to %p0
-	mov.pred 			%p2, %p0; 				// store key exists %p0 in a temp predicate
+	mov.pred		%p2, %p0; 			// store key exists %p0 in a temp predicate
 	@%p0
-	setp.eq.u32 		%p1, %r1, %lane_id; 	// predicate1 = cur_lane == lane_id
+	setp.eq.u32 		%p1, %r1, %lane_id;		// predicate1 = cur_lane == lane_id
 	@%p0
-	and.pred			%p0, %p0, %p1; 			// key exist, and lane is cur_lane
+	and.pred		%p0, %p0, %p1; 			// key exist, and lane is cur_lane
 	@%p0
-	mov.u16				%lane_result, 1; 		// store true
+	mov.u16			%lane_result, 1; 		// store true
 	@%p2
-	bra.uni 			Loop;					 // terminate
+	bra.uni			Loop;				 // terminate
 	setp.eq.u32 		%p0, %r0, -1; 			 // predicate0 = bucket_key == invalid_key
 	vote.sync.any.pred 	%p0, %p0, -1; 			 // broadcast invalid key exist to %p0
 	@%p0 bra.uni		Loop;
@@ -193,20 +193,20 @@
 	rem.u32	 	%r0, %r0, %hf_prime;
 	rem.u32	 	%r0, %r0, %num_buckets;
 	// load the bucket
-	cvt.s64.s32				%rd1, %lane_id;
+	cvt.s64.s32			%rd1, %lane_id;
 	mul.wide.s32 			%rd1, %lane_id, 4;
 	mad.wide.s32 			%rd0, %r0, 32*4, %rd1; 		// 32 is bucket size
-	add.s64 				%rd1, %table, %rd0;
-	ld.global.u32 			%r0, [%rd1]; 				// bucket data is stored in %r0
-	setp.eq.u32 			%p0, %r0, %r2; 				// predicate0 = bucket_key == cur_key
-	vote.sync.any.pred 		%p0, %p0, -1; 				// broadcast that the key exist to %p0
-	mov.pred 				%p2, %p0; 					// store key exists %p0 in a temp predicate
+	add.s64				%rd1, %table, %rd0;
+	ld.global.u32 			%r0, [%rd1]; 			// bucket data is stored in %r0
+	setp.eq.u32 			%p0, %r0, %r2; 			// predicate0 = bucket_key == cur_key
+	vote.sync.any.pred 		%p0, %p0, -1; 			// broadcast that the key exist to %p0
+	mov.pred			%p2, %p0; 			// store key exists %p0 in a temp predicate
 	@%p0
 	setp.eq.u32 			%p1, %r1, %lane_id; 		// predicate1 = cur_lane == lane_id
 	@%p0
-	and.pred				%p0, %p0, %p1; 				// key exist, and lane is cur_lane
+	and.pred			%p0, %p0, %p1;			// key exist, and lane is cur_lane
 	@%p0
-	mov.u16					%lane_result, 1; 			// store true
+	mov.u16				%lane_result, 1;		// store true
 
 	bra.uni 	Loop;
 	Exit_loop:
@@ -215,7 +215,7 @@
 	cvt.u64.u32		%rd0, %thread_id; // address calculation
 	add.s64			%rd1, %results, %rd0;
 	@%p_to_write_result
-	st.global.u8	[%rd1], %lane_result;
+	st.global.u8		[%rd1], %lane_result;
 	ret;
 
 	// printf example
