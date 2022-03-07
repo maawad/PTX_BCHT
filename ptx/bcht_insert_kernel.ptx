@@ -6,18 +6,18 @@
 
 //.relaxed loads require at least sm_70
 .target sm_80, sm_86,
-		sm_75, sm_72, sm_70
+	sm_75, sm_72, sm_70
 
 .address_size 64
 
 .visible .entry bcht_insert(
-	.param .u64 param_table, 			//uint32_t* table
-	.param .u64 param_keys, 			//uint32_t* keys_in
-	.param .u32 param_num_keys, 		//uint32_t  num_keys
-	.param .align 4 .b8 param_hf0[12],  // hash_function f0
-	.param .align 4 .b8 param_hf1[12],  // hash_function f1
-	.param .align 4 .b8 param_hf2[12],  // hash_function f2
-	.param .u32 param_num_buckets 		// num_buckets
+	.param .u64 param_table,			//uint32_t* table
+	.param .u64 param_keys,				//uint32_t* keys_in
+	.param .u32 param_num_keys,			//uint32_t  num_keys
+	.param .align 4 .b8 param_hf0[12],		// hash_function f0
+	.param .align 4 .b8 param_hf1[12],		// hash_function f1
+	.param .align 4 .b8 param_hf2[12],		// hash_function f2
+	.param .u32 param_num_buckets			// num_buckets
 )
 {
 
@@ -78,9 +78,9 @@
 	setp.lt.u32 	%p_to_insert, %thread_id, %num_keys;
 
 	// Loading the input
-	mul.wide.s32 	%rd0, %thread_id, 4;
-	add.s64			%rd1, %keys_in, %rd0;
-	mov.b32			%lane_key, -1;
+	mul.wide.s32	%rd0, %thread_id, 4;
+	add.s64		%rd1, %keys_in, %rd0;
+	mov.b32		%lane_key, -1;
 	@%p_to_insert
 	ld.global.u32	%lane_key, [%rd1];
 
@@ -89,59 +89,60 @@
 
 	// loop over the keys in the warp
 	Loop:
-	vote.sync.ballot.b32 	%r0, %p_to_insert, -1;
-	setp.eq.u32 			%p0, %r0, 0; //terminate if no items in the queue
+	vote.sync.ballot.b32	%r0, %p_to_insert, -1;
+	setp.eq.u32		%p0, %r0, 0; //terminate if no items in the queue
 	@%p0
-	bra.uni 				Exit_loop;
+	bra.uni			Exit_loop;
 
-	bfind.u32 				%r1, %r0;
-	setp.eq.u32 			%p0, %lane_id, %r1;
+	bfind.u32		%r1, %r0;
+	setp.eq.u32		%p0, %lane_id, %r1;
 	@%p0
-	mov.pred 				%p_to_insert, 0;
-	shfl.sync.idx.b32 		%cur_key, %lane_key, %r1, 31, -1;
+	mov.pred		%p_to_insert, 0;
+	shfl.sync.idx.b32	%cur_key, %lane_key, %r1, 31, -1;
 
 	// Hash function
-	xor.b32					%cur_bucket, %cur_key, %hfx0;
-	add.u32					%cur_bucket, %cur_bucket, %hfy0;
-	rem.u32					%cur_bucket, %cur_bucket, %hf_prime;
-	rem.u32					%cur_bucket, %cur_bucket, %num_buckets;
+	xor.b32			%cur_bucket, %cur_key, %hfx0;
+	add.u32			%cur_bucket, %cur_bucket, %hfy0;
+	rem.u32			%cur_bucket, %cur_bucket, %hf_prime;
+	rem.u32			%cur_bucket, %cur_bucket, %num_buckets;
 	Load_bucket:
-	mul.wide.s32 			%rd1, %lane_id, 4;
-	mad.wide.s32 			%rd0, %cur_bucket, 32*4, %rd1; //32 is bucket size
-	add.s64 				%rd1, %table, %rd0;
+	mul.wide.s32		%rd1, %lane_id, 4;
+	mad.wide.s32		%rd0, %cur_bucket, 32*4, %rd1; //32 is bucket size
+	add.s64			%rd1, %table, %rd0;
 	Retry:
-	ld.global.u32			%r0, [%rd1];
-	setp.ne.u32 			%p0, %r0, -1;
-	vote.sync.ballot.b32 	%r0, %p0, -1;
-	popc.b32 				%r0, %r0;	// bucket load
-	setp.eq.u32				%p0, %r0, 32;
+	ld.global.u32		%r0, [%rd1];
+	setp.ne.u32		%p0, %r0, -1;
+	vote.sync.ballot.b32	%r0, %p0, -1;
+	popc.b32		%r0, %r0;	// bucket load
+	setp.eq.u32		%p0, %r0, 32;
 	@%p0
 	bra.uni Cuckoo;
+	
 	Try_insert:
-	setp.eq.u32								%p0, %r0, %lane_id;
+	setp.eq.u32				%p0, %r0, %lane_id;
 	@%p0
-	atom.relaxed.gpu.global.cas.b32 		%r1, [%rd1], -1, %cur_key;
-	shfl.sync.idx.b32 						%r2, %r1, %r0, 31, -1;
-	setp.eq.u32								%p0, %r2, -1;
+	atom.relaxed.gpu.global.cas.b32		%r1, [%rd1], -1, %cur_key;
+	shfl.sync.idx.b32			%r2, %r1, %r0, 31, -1;
+	setp.eq.u32				%p0, %r2, -1;
 	@%p0
-	bra.uni 								Loop;
+	bra.uni					Loop;
 	//it is probably better to increment
 	//the CAS pointer position instead of re-loading
 	//and computing the CAS location.
 	//Somehow it didn't matter (very low contention?)
-	bra.uni									Retry;
+	bra.uni		Retry;
 	Cuckoo:
-	shl.b32			%r0, %rng, 13;
-	xor.b32			%rng, %rng, %r0;
-	shr.b32			%rng, %rng, 17;
-	shl.b32			%r0, %rng, 5;
-	xor.b32			%rng, %rng, %r0;
-	rem.u32			%r0, %rng, 32;
-	setp.eq.u32		%p0, %lane_id, %r0;
+	shl.b32		%r0, %rng, 13;
+	xor.b32		%rng, %rng, %r0;
+	shr.b32		%rng, %rng, 17;
+	shl.b32		%r0, %rng, 5;
+	xor.b32		%rng, %rng, %r0;
+	rem.u32		%r0, %rng, 32;
+	setp.eq.u32	%p0, %lane_id, %r0;
+	
 	@%p0
-	atom.relaxed.gpu.global.exch.b32		%r1, [%rd1], %cur_key;
-	shfl.sync.idx.b32 						%cur_key, %r1, %r0, 31, -1;
-
+	atom.relaxed.gpu.global.exch.b32	%r1, [%rd1], %cur_key;
+	shfl.sync.idx.b32			%cur_key, %r1, %r0, 31, -1;
 	xor.b32					%r0, %cur_key, %hfx0;
 	add.u32					%r0, %r0, %hfy0;
 	rem.u32					%r0, %r0, %hf_prime;
