@@ -110,7 +110,7 @@
 	ld.param.u32 	%num_buckets, [param_num_buckets];
 	ld.param.u32 	%num_keys, [param_num_keys];
 
-	mov.u16		%lane_result, 0; 						// default result is not found
+	mov.u16		%lane_result, 0; 			// default result is not found
 	setp.lt.u32	%p_to_lookup, %thread_id, %num_keys; 	// thread_id < num_keys ? 1 : 0
 	mov.pred	%p_to_write_result, %p_to_lookup;
 
