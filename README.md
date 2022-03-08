@@ -72,7 +72,7 @@ Find ratio was: 100%
 ```
 
 ## Performance
-Results for building a hash table with a given number of keys then performing the same number of queries as the number of keys. Queriers are performed for positive queriers ratios (e.g., 100% for queriers that all exist in the hash set).
+Results for building a hash table with a given number of keys then performing the same number of queries as the number of keys. Queries are performed for different positive queriers ratios (e.g., 100% for queries that all exist in the hash set).
 ```
    Millions    |      %      |                  Million keys/s
 Number of keys | Load factor | Insertion rate |             Find rate
