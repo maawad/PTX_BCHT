@@ -5,7 +5,7 @@ Bucketed Cuckoo hash table written in PTX and JIT-compiled.
 This repository aims to experiment with JIT compilations of hand-written PTX CUDA files (we also love assembly). We implemented [insertion](./ptx/bcht_insert_kernel.ptx) and [query](./ptx/bcht_find_kernel.ptx)  kernels for a bucketed cuckoo hash set entirely in NVIDIA's PTX.
 
 
-Cuckoo hashing is a probing scheme that achieves very low number of probes at very high load factors. This implementation is probably is the fastest GPU hash set implementation, but if you are interested in the state-of-the-art cuckoo hashing implementation, check out our bucketed cuckoo hashing [implementation](https://github.com/owensgroup/BGHT) and [paper](https://arxiv.org/abs/2108.07232).
+Cuckoo hashing is a probing scheme that achieves very low number of probes at very high load factors. This implementation is probably the fastest GPU hash set implementation, but if you are interested in the state-of-the-art cuckoo hashing implementation, check out our bucketed cuckoo hashing [implementation](https://github.com/owensgroup/BGHT) and [paper](https://arxiv.org/abs/2108.07232).
 
 ## Build
 ```bash
