@@ -6,7 +6,8 @@
 #include <qtextedit.h>
 #include <QFileDialog>
 #include <QHBoxLayout>
-
+#include <qtablewidget.h>
+#include <qcheckbox.h>
 // CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -16,12 +17,12 @@
 #include <vector>
 
 // includes
+#include <hash_function.hpp>
 #include <helpers.hpp>
 #include <ptx_highlighter.hpp>
 #include <ptx_kernel.hpp>
 #include <rkg.hpp>
 #include <serial_cuckoo.hpp>
-#include <hash_function.hpp>
 using key_type = uint32_t;
 
 struct keys_io {
@@ -36,9 +37,9 @@ struct keys_io {
     d_keys      = h_keys;
     d_find_keys = h_find_keys;
   }
-  cuda_array<key_type> d_keys;                // input keys
-  cuda_array<key_type> d_find_keys;           // input find keys
-  cuda_array<bool> d_key_exist;  // query result
+  cuda_array<key_type> d_keys;       // input keys
+  cuda_array<key_type> d_find_keys;  // input find keys
+  cuda_array<bool> d_key_exist;      // query result
 };
 
 struct gpu_hashset {
@@ -95,59 +96,107 @@ int main(int argc, char **argv) {
 
   const int num_keys = 1'000'000;
   keys_io input(num_keys);
-
+  bool use_hot_reload = false;
   // Window
   QWidget *window = new QWidget;
   window->resize(512, 512);
 
-  QTextEdit *editor            = new QTextEdit;
+  QTextEdit *insert_editor     = new QTextEdit;
+  QTextEdit *find_editor     = new QTextEdit;
   QTextEdit *compiler_output   = new QTextEdit;
-  QPushButton *load_button     = new QPushButton("Load PTX");
+
+  QPushButton *load_insert_button            = new QPushButton("Load Insert Kernel PTX");
+  QPushButton *load_find_button            = new QPushButton("Load Find Kernel PTX");
   QPushButton *compile_button  = new QPushButton("Compile PTX");
-  ptx_highlighter *highlighter = new ptx_highlighter(editor->document());
+
+  QCheckBox *hot_reload_cbox  = new QCheckBox("Hot Reload");
+  hot_reload_cbox->setChecked(false);
+
+
+  ptx_highlighter *insert_highlighter = new ptx_highlighter(insert_editor->document());
+  ptx_highlighter *find_highlighter  = new ptx_highlighter(find_editor->document());
 
   // window layout
   QGridLayout *main_layout    = new QGridLayout(window);
   QHBoxLayout *buttons_layout = new QHBoxLayout;
-  compiler_output->setFixedHeight(128);
-  buttons_layout->addWidget(load_button);
+  compiler_output->setFixedHeight(200);
+  buttons_layout->addWidget(load_insert_button);
+  buttons_layout->addWidget(load_find_button);
   buttons_layout->addWidget(compile_button);
+  buttons_layout->addWidget(hot_reload_cbox);
   // todo: fix the layout
-  main_layout->addWidget(editor, 0, 0);
-  main_layout->addWidget(compiler_output, 1, 0);
-  main_layout->addLayout(buttons_layout, 2, 0);
+  main_layout->addWidget(insert_editor, 0, 0);
+  main_layout->addWidget(find_editor, 0, 1);
+  main_layout->addWidget(compiler_output, 1, 0, 1, 2);
+  main_layout->addLayout(buttons_layout, 2, 0, 1, 2);
+
 
   // Signals and slots
-  QObject::connect(load_button, &QPushButton::clicked, [&]() {
+  QObject::connect(load_insert_button, &QPushButton::clicked, [&]() {
     QString ptx_fname =
         QFileDialog::getOpenFileName(0, "Select source file", ".", "PTX files (*.ptx)");
     QFile ptx_file(ptx_fname);
     if (!ptx_file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
     QTextStream in(&ptx_file);
-    editor->clear();
+    insert_editor->clear();
     while (!in.atEnd()) {
       QString line = in.readLine();
-      editor->append(line);
+      insert_editor->append(line);
     }
   });
+   QObject::connect(load_find_button, &QPushButton::clicked, [&]() {
+    QString ptx_fname =
+        QFileDialog::getOpenFileName(0, "Select source file", ".", "PTX files (*.ptx)");
+    QFile ptx_file(ptx_fname);
+    if (!ptx_file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QTextStream in(&ptx_file);
+    find_editor->clear();
+    while (!in.atEnd()) {
+      QString line = in.readLine();
+      find_editor->append(line);
+    }
+
+  });
+
+    QObject::connect(
+       hot_reload_cbox, &QCheckBox::stateChanged, [&]() { 
+            use_hot_reload = !use_hot_reload;
+        });
 
   ptx_kernel insertion_kernel;
   ptx_kernel find_kernel;
   insertion_kernel.set_kernel_entry("bcht_insert");
-
-   QObject::connect(
-      compile_button, &QPushButton::clicked, [&]() { 
-        insertion_kernel.set_kernel_source(editor->toPlainText().toStdString());
-        auto compiler_log = insertion_kernel.compile();
-        compiler_output->clear();
+  find_kernel.set_kernel_entry("bcht_find");
+  
+  auto compile_lambda = [&]() {
+    insertion_kernel.set_kernel_source(insert_editor->toPlainText().toStdString());
+    std::string compiler_log;
+    try {
+      compiler_log = insertion_kernel.compile();
+    } catch (const std::exception &e) { compiler_log = std::string("Error: ") + e.what(); }
+    compiler_output->clear();
     compiler_output->setText(QString::fromStdString(compiler_log));
+
+    find_kernel.set_kernel_source(find_editor->toPlainText().toStdString());
+    try {
+      compiler_log = find_kernel.compile();
+    } catch (const std::exception &e) { compiler_log = std::string("Error: ") + e.what(); }
+    compiler_output->append(QString::fromStdString(compiler_log));
+  };
+
+  QObject::connect(insert_editor, &QTextEdit::textChanged, [&]() {
+    if (use_hot_reload) compile_lambda();
   });
 
+  QObject::connect(find_editor, &QTextEdit::textChanged, [&]() {
+    if (use_hot_reload) compile_lambda();
+  });
+  QObject::connect(compile_button, &QPushButton::clicked, compile_lambda);
 
   cudaDeviceProp device_prop;
   cudaGetDeviceProperties(&device_prop, device_id);
   auto gpu_name = device_prop.name;
-  editor->setText(gpu_name);
+  insert_editor->setText(gpu_name);
 
   window->show();
   return test.exec();

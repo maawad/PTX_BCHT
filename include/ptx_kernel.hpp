@@ -134,6 +134,7 @@ struct ptx_kernel {
     // JIT Compile the Kernel from PTX and get the Handles (Driver API)
     // This has to be after allocating memory or cuLinkCreate fails(?)
     if (kernel_source_ == "") { 
+        if (kernel_path_ == "") return "Empty kernel";
         kernel_source_ = read_ptx(kernel_path_);
     }
     return ptxJIT(&h_module_, &h_kernel_, &link_state_, kernel_source_, kernel_entry_string_, quiet);
