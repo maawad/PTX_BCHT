@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
   });
 
     QObject::connect(
-       hot_reload_cbox, &QCheckBox::stateChanged, [&]() { 
+       hot_reload_cbox, &QCheckBox::stateChanged, [&]() {
             use_hot_reload = !use_hot_reload;
         });
 
@@ -167,7 +167,7 @@ int main(int argc, char **argv) {
   ptx_kernel find_kernel;
   insertion_kernel.set_kernel_entry("bcht_insert");
   find_kernel.set_kernel_entry("bcht_find");
-  
+
   auto compile_lambda = [&]() {
     insertion_kernel.set_kernel_source(insert_editor->toPlainText().toStdString());
     std::string compiler_log;

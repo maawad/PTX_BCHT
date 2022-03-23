@@ -30,7 +30,6 @@ target_link_libraries(ptx_cuckoo_hashtable CUDA::cuda_driver CUDA::cudart_static
 
 
 # QT
-set(CMAKE_PREFIX_PATH "C:/Qt/6.3.0/msvc2019_64")
 find_package(Qt6 COMPONENTS Widgets)
 if (Qt6_FOUND)
     add_executable(ptx_editor ptx_editor.cpp)

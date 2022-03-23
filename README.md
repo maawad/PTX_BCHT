@@ -98,5 +98,11 @@ Number of keys | Load factor | Insertion rate |             Find rate
       50       |     99      |     1178.17    |  1499.96    2045.16     3178.91
 ```
 
+## PTX Editor
+
+If you have QT 6.3 or higher, you can also build a text editor where you can load the PTX kernels and edit them with an option to hot-reload and recompile the kernels with each edit.
+
+![](/img/ptx_editor.png)
+
 ## Authors:
 [Muhammad Awad](https://github.com/maawad) and [Serban Porumbescu](https://github.com/porumbes).
