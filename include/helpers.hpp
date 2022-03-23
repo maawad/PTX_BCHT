@@ -11,7 +11,7 @@
     cudaError_t err = static_cast<cudaError_t>(call);                                 \
     if (err != cudaSuccess) {                                                         \
       printf("CUDA error at %s %d: %s\n", __FILE__, __LINE__, cudaGetErrorName(err)); \
-      std::terminate();                                                               \
+      throw std::logic_error(cudaGetErrorName(err));                                  \
     }                                                                                 \
   } while (0)
 
@@ -109,6 +109,13 @@ struct cuda_array {
   }
   cuda_array() : size_(0), ptr_(nullptr) {}
 
+  // todo: don't clear the array
+  void resize(std::size_t new_size) {
+    free();
+    size_ = new_size;
+    allocate();
+    set_value(0);
+  }
   // copy constructor
   cuda_array<T>(const cuda_array<T>&) = delete;
   cuda_array<T>(const std::vector<T>& input) {

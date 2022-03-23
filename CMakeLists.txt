@@ -29,6 +29,16 @@ target_compile_definitions(ptx_cuckoo_hashtable PRIVATE PTX_INCLUDE_DIR="${ptx_d
 target_link_libraries(ptx_cuckoo_hashtable CUDA::cuda_driver CUDA::cudart_static)
 
 
+# QT
+find_package(Qt6 COMPONENTS Widgets QUIET)
+if (Qt6_FOUND)
+    add_executable(ptx_editor ptx_editor.cpp)
+    target_include_directories(ptx_editor
+                        PRIVATE ${external_includes}
+                        PRIVATE ${cuda_includes}
+                        PRIVATE ${includes_directory})
+    target_link_libraries(ptx_editor Qt6::Widgets  CUDA::cuda_driver CUDA::cudart_static)
+endif()
 
 # visual studio setup
 file(TO_NATIVE_PATH ${external_includes} external_includes_native)
