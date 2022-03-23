@@ -11,7 +11,7 @@
     cudaError_t err = static_cast<cudaError_t>(call);                                 \
     if (err != cudaSuccess) {                                                         \
       printf("CUDA error at %s %d: %s\n", __FILE__, __LINE__, cudaGetErrorName(err)); \
-      throw std::logic_error(cudaGetErrorName(err));                                                                \
+      throw std::logic_error(cudaGetErrorName(err));                                  \
     }                                                                                 \
   } while (0)
 

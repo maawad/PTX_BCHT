@@ -28,11 +28,11 @@ std::string inline read_ptx(const std::string ptx_file_path) {
 }
 
 std::string ptxJIT(CUmodule* ph_module,
-            CUfunction* ph_kernel,
-            CUlinkState* linker_state,
-            const std::string ptx_source,
-            const std::string kernel_entry_string,
-            const bool quiet = false) {
+                   CUfunction* ph_kernel,
+                   CUlinkState* linker_state,
+                   const std::string ptx_source,
+                   const std::string kernel_entry_string,
+                   const bool quiet = false) {
   // see JIT Sample
   // C:\ProgramData\NVIDIA Corporation\CUDA Samples\v11.4\0_Simple\inlinePTX_nvrtc
   const unsigned int num_options = 7;
@@ -62,7 +62,6 @@ std::string ptxJIT(CUmodule* ph_module,
 
   // Creates a linker invoation
   cuda_try(cuLinkCreate(num_options, options, option_values, linker_state));
-
 
   // Load the PTX from the ptx file
   cuda_try(cuLinkAddData(*linker_state,
@@ -107,8 +106,7 @@ struct ptx_kernel {
       , kernel_source_("")
       , kernel_entry_string_(kernel_entry_string) {}
 
-
-   ptx_kernel()
+  ptx_kernel()
       : h_module_(0)
       , h_kernel_(0)
       , link_state_(0)
@@ -133,18 +131,16 @@ struct ptx_kernel {
   std::string compile(const bool quiet = false) {
     // JIT Compile the Kernel from PTX and get the Handles (Driver API)
     // This has to be after allocating memory or cuLinkCreate fails(?)
-    if (kernel_source_ == "") { 
-        if (kernel_path_ == "") return "Empty kernel";
-        kernel_source_ = read_ptx(kernel_path_);
+    if (kernel_source_ == "") {
+      if (kernel_path_ == "") return "Empty kernel";
+      kernel_source_ = read_ptx(kernel_path_);
     }
-    return ptxJIT(&h_module_, &h_kernel_, &link_state_, kernel_source_, kernel_entry_string_, quiet);
+    return ptxJIT(
+        &h_module_, &h_kernel_, &link_state_, kernel_source_, kernel_entry_string_, quiet);
   }
-  void set_kernel_source(const std::string source) {
-      kernel_source_ = source;
-  }
-  void set_kernel_entry(const std::string entry) { 
-      kernel_entry_string_ = entry; 
-  }
+  void set_kernel_source(const std::string source) { kernel_source_ = source; }
+  void set_kernel_entry(const std::string entry) { kernel_entry_string_ = entry; }
+
  private:
   CUmodule h_module_;
   CUfunction h_kernel_;

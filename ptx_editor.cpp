@@ -1,13 +1,13 @@
 // QT
 #include <qapplication.h>
+#include <qcheckbox.h>
 #include <qpushbutton.h>
 #include <qregularexpression.h>
 #include <qstylefactory.h>
+#include <qtablewidget.h>
 #include <qtextedit.h>
 #include <QFileDialog>
 #include <QHBoxLayout>
-#include <qtablewidget.h>
-#include <qcheckbox.h>
 // CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -101,20 +101,19 @@ int main(int argc, char **argv) {
   QWidget *window = new QWidget;
   window->resize(512, 512);
 
-  QTextEdit *insert_editor     = new QTextEdit;
+  QTextEdit *insert_editor   = new QTextEdit;
   QTextEdit *find_editor     = new QTextEdit;
-  QTextEdit *compiler_output   = new QTextEdit;
+  QTextEdit *compiler_output = new QTextEdit;
 
-  QPushButton *load_insert_button            = new QPushButton("Load Insert Kernel PTX");
-  QPushButton *load_find_button            = new QPushButton("Load Find Kernel PTX");
-  QPushButton *compile_button  = new QPushButton("Compile PTX");
+  QPushButton *load_insert_button = new QPushButton("Load Insert Kernel PTX");
+  QPushButton *load_find_button   = new QPushButton("Load Find Kernel PTX");
+  QPushButton *compile_button     = new QPushButton("Compile PTX");
 
-  QCheckBox *hot_reload_cbox  = new QCheckBox("Hot Reload");
+  QCheckBox *hot_reload_cbox = new QCheckBox("Hot Reload");
   hot_reload_cbox->setChecked(false);
 
-
   ptx_highlighter *insert_highlighter = new ptx_highlighter(insert_editor->document());
-  ptx_highlighter *find_highlighter  = new ptx_highlighter(find_editor->document());
+  ptx_highlighter *find_highlighter   = new ptx_highlighter(find_editor->document());
 
   // window layout
   QGridLayout *main_layout    = new QGridLayout(window);
@@ -130,7 +129,6 @@ int main(int argc, char **argv) {
   main_layout->addWidget(compiler_output, 1, 0, 1, 2);
   main_layout->addLayout(buttons_layout, 2, 0, 1, 2);
 
-
   // Signals and slots
   QObject::connect(load_insert_button, &QPushButton::clicked, [&]() {
     QString ptx_fname =
@@ -144,7 +142,7 @@ int main(int argc, char **argv) {
       insert_editor->append(line);
     }
   });
-   QObject::connect(load_find_button, &QPushButton::clicked, [&]() {
+  QObject::connect(load_find_button, &QPushButton::clicked, [&]() {
     QString ptx_fname =
         QFileDialog::getOpenFileName(0, "Select source file", ".", "PTX files (*.ptx)");
     QFile ptx_file(ptx_fname);
@@ -155,13 +153,10 @@ int main(int argc, char **argv) {
       QString line = in.readLine();
       find_editor->append(line);
     }
-
   });
 
-    QObject::connect(
-       hot_reload_cbox, &QCheckBox::stateChanged, [&]() {
-            use_hot_reload = !use_hot_reload;
-        });
+  QObject::connect(
+      hot_reload_cbox, &QCheckBox::stateChanged, [&]() { use_hot_reload = !use_hot_reload; });
 
   ptx_kernel insertion_kernel;
   ptx_kernel find_kernel;
