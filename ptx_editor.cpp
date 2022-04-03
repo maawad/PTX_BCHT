@@ -8,6 +8,9 @@
 #include <qtextedit.h>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <qspinbox.h>
+#include <qlabel.h>
+
 // CUDA
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -34,6 +37,16 @@ struct keys_io {
     rkg::prep_experiment_find_with_exist_ratio(exist_ratio, num_keys, h_keys, h_find_keys);
     h_keys.resize(num_keys);
 
+    d_keys      = h_keys;
+    d_find_keys = h_find_keys;
+  }
+  void resize(uint32_t num_keys, const float exist_ratio = 0.5) {
+    std::vector<key_type> h_keys;
+    rkg::generate_uniform_unique_keys(h_keys, num_keys * 2, 1u);
+    std::vector<key_type> h_find_keys(num_keys);
+    rkg::prep_experiment_find_with_exist_ratio(exist_ratio, num_keys, h_keys, h_find_keys);
+    h_keys.resize(num_keys);
+    
     d_keys      = h_keys;
     d_find_keys = h_find_keys;
   }
@@ -94,7 +107,7 @@ int main(int argc, char **argv) {
   const int device_id = 0;
   CUdevice gpu        = get_cuda_device(device_id);
 
-  const int num_keys = 1'000'000;
+  uint32_t num_keys = 1'000'000;
   keys_io input(num_keys);
   bool use_hot_reload = false;
   // Window
@@ -111,6 +124,20 @@ int main(int argc, char **argv) {
 
   QCheckBox *hot_reload_cbox = new QCheckBox("Hot Reload");
   hot_reload_cbox->setChecked(false);
+  
+  QLabel *num_keys_label      = new QLabel(QString("Number of Keys"));
+  QSpinBox *num_keys_spinbox = new QSpinBox;
+  num_keys_spinbox->setMinimum(1);
+  num_keys_spinbox->setMaximum(std::numeric_limits<int>::max());
+  num_keys_spinbox->setValue(num_keys);
+
+  QLabel *load_factor_label = new QLabel(QString("Load Factor"));
+  QSpinBox *load_factor_spinbox = new QSpinBox;
+  load_factor_spinbox->setMinimum(1);
+  load_factor_spinbox->setMaximum(100);
+  QCheckBox *hot_run_cbox = new QCheckBox("Hot Run");
+  hot_run_cbox->setChecked(false);
+
 
   ptx_highlighter *insert_highlighter = new ptx_highlighter(insert_editor->document());
   ptx_highlighter *find_highlighter   = new ptx_highlighter(find_editor->document());
@@ -118,21 +145,30 @@ int main(int argc, char **argv) {
   // window layout
   QGridLayout *main_layout    = new QGridLayout(window);
   QHBoxLayout *buttons_layout = new QHBoxLayout;
+  QHBoxLayout *inputs_layout = new QHBoxLayout;
   compiler_output->setFixedHeight(200);
   buttons_layout->addWidget(load_insert_button);
   buttons_layout->addWidget(load_find_button);
   buttons_layout->addWidget(compile_button);
   buttons_layout->addWidget(hot_reload_cbox);
+
+  inputs_layout->addWidget(num_keys_label);
+  inputs_layout->addWidget(num_keys_spinbox);
+  inputs_layout->addWidget(load_factor_label);
+  inputs_layout->addWidget(load_factor_spinbox);
+  inputs_layout->addWidget(hot_run_cbox);
+
   // todo: fix the layout
   main_layout->addWidget(insert_editor, 0, 0);
   main_layout->addWidget(find_editor, 0, 1);
   main_layout->addWidget(compiler_output, 1, 0, 1, 2);
   main_layout->addLayout(buttons_layout, 2, 0, 1, 2);
+  main_layout->addLayout(inputs_layout, 3, 0, 1, 2);
 
   // Signals and slots
   QObject::connect(load_insert_button, &QPushButton::clicked, [&]() {
     QString ptx_fname =
-        QFileDialog::getOpenFileName(0, "Select source file", ".", "PTX files (*.ptx)");
+        QFileDialog::getOpenFileName(0, "Select Insertion kernel source file", ".", "PTX files (*.ptx)");
     QFile ptx_file(ptx_fname);
     if (!ptx_file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
     QTextStream in(&ptx_file);
@@ -144,7 +180,7 @@ int main(int argc, char **argv) {
   });
   QObject::connect(load_find_button, &QPushButton::clicked, [&]() {
     QString ptx_fname =
-        QFileDialog::getOpenFileName(0, "Select source file", ".", "PTX files (*.ptx)");
+        QFileDialog::getOpenFileName(0, "Select Find kernel source file", ".", "PTX files (*.ptx)");
     QFile ptx_file(ptx_fname);
     if (!ptx_file.open(QIODevice::ReadOnly | QIODevice::Text)) return;
     QTextStream in(&ptx_file);
@@ -157,6 +193,12 @@ int main(int argc, char **argv) {
 
   QObject::connect(
       hot_reload_cbox, &QCheckBox::stateChanged, [&]() { use_hot_reload = !use_hot_reload; });
+
+  // Input generation
+  QObject::connect(num_keys_spinbox, &QSpinBox::valueChanged, [&]() {
+    num_keys = num_keys_spinbox->value();
+    input.resize(num_keys);
+  });
 
   ptx_kernel insertion_kernel;
   ptx_kernel find_kernel;

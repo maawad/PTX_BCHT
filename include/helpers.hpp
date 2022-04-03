@@ -119,6 +119,7 @@ struct cuda_array {
   // copy constructor
   cuda_array<T>(const cuda_array<T>&) = delete;
   cuda_array<T>(const std::vector<T>& input) {
+    free();
     size_ = input.size();
     allocate();
     from_std_vector(input);
